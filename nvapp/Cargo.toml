@@ -1,0 +1,11 @@
+[package]
+name = "nvapp"
+version = "0.1.0"
+authors = ["Thog <me@thog.eu>"]
+edition = "2018"
+
+[dependencies]
+nvmap = { path = "../nvmap" }
+nvhost = { path = "../nvhost" }
+nvgpu = { path = "../nvgpu" }
+byteorder = "1"

@@ -1,0 +1,13 @@
+[package]
+name = "nvgpu"
+version = "0.1.0"
+authors = ["Thog <contact@thog.eu>"]
+edition = "2018"
+
+[dependencies]
+nvmap = { path = "../nvmap" }
+nvhost = { path = "../nvhost" }
+bitflags = "1.0"
+bitfield = "0.13"
+nix = "0.13.0"
+libc = "0.2"

@@ -1,0 +1,13 @@
+language: rust
+rust:
+- nightly
+
+cache: cargo
+
+before_script:
+- rustup component add clippy --toolchain=nightly || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
+
+script:
+- cargo build --all-features
+- cargo clippy  --all-targets --all-features -- -A clippy::redundant_field_names -A clippy::unreadable_literal -A clippy::identity_op -A clippy::zero_prefixed_literal -A clippy::redundant_closure -W clippy::cast_possible_wrap -W clippy::cast_sign_loss -W clippy::default_trait_access -W clippy::explicit_into_iter_loop -W clippy::explicit_iter_loop -W clippy::missing_docs_in_private_items -W clippy::mut_mut -W clippy::replace_consts -W clippy::used_underscore_binding -W clippy::wildcard_dependencies -W clippy::wrong_pub_self_convention -D warnings
+- cargo test

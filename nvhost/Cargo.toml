@@ -1,0 +1,14 @@
+[package]
+name = "nvhost"
+version = "0.1.0"
+authors = ["Thog <contact@thog.eu>"]
+edition = "2018"
+
+[dependencies]
+nvmap = { path = "../nvmap" }
+bitflags = "1.0"
+nix = "0.13.0"
+
+[[bin]]
+name = "nvhost_testing"
+path = "src/bin/testing.rs"
