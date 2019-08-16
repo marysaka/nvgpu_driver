@@ -122,7 +122,6 @@ impl From<ChannelPriority> for u32 {
 /// NvHost IOCTLs
 #[allow(dead_code)]
 mod ioctl {
-    use std::os::unix::io::RawFd;
     use super::Characteristics;
     use super::CommandBuffer;
     use super::CommandBufferExt;
@@ -134,7 +133,7 @@ mod ioctl {
     use super::SyncPointId;
     use super::SyncPointIncrement;
     use super::WaitChk;
-
+    use std::os::unix::io::RawFd;
 
     /// NvHost ioctl magic.
     const NVHOST_IOCTL_MAGIC: u8 = b'H';
