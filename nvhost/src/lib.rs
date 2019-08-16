@@ -1,12 +1,9 @@
 //! Userland interface for nvhost (Tegra graphics host driver).
 #[macro_use]
-extern crate bitflags;
-
-#[macro_use]
 extern crate nix;
 
 use nix::errno::Errno;
-use nvmap::*;
+use nvmap::NvMap;
 
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -109,20 +106,21 @@ pub struct SyncPointIncrement {
 pub enum ChannelPriority {
     Low,
     Medium,
-    High
+    High,
 }
 
 impl From<ChannelPriority> for u32 {
     fn from(input: ChannelPriority) -> Self {
         match input {
-            Low => 50,
-            Medium => 100,
-            High => 150
+            ChannelPriority::Low => 50,
+            ChannelPriority::Medium => 100,
+            ChannelPriority::High => 150,
         }
     }
 }
 
 /// NvHost IOCTLs
+#[allow(dead_code)]
 mod ioctl {
     use super::Characteristics;
     use super::CommandBuffer;
@@ -569,7 +567,7 @@ impl NvHostChannel {
     pub fn new(path: &str, nvmap_instance: &NvMap) -> NvHostResult<Self> {
         let file = OpenOptions::new().read(true).write(true).open(path);
         if file.is_err() {
-            return Err(Errno::ENOENT)
+            return Err(Errno::ENOENT);
         }
         let file = file.unwrap();
         let res = NvHostChannel { file };
@@ -590,9 +588,7 @@ impl NvHostChannel {
 
     /// Assign the given nvmap file descriptor to this channel.
     pub fn set_nvmap_fd(&self, raw_fd: RawFd) -> NvHostResult<()> {
-        let param = SetNvMapFdArguments {
-            fd: raw_fd as u32
-        };
+        let param = SetNvMapFdArguments { fd: raw_fd as u32 };
 
         let res = unsafe { ioc_channel_set_nvmap_fd(self.file.as_raw_fd(), &param) };
         if res.is_err() {
@@ -620,14 +616,14 @@ impl NvHostChannel {
     pub fn set_timeslice(&self, timeslice_us: u32) -> NvHostResult<()> {
         let param = SetTimeSliceArguments {
             timeslice_us,
-            reserved: 0
+            reserved: 0,
         };
 
         let res = unsafe { ioc_channel_set_timeslice(self.file.as_raw_fd(), &param) };
         if res.is_err() {
             // FIXME: this is unimplemented on R32.2
             if let Err(nix::Error::Sys(Errno::ENOTTY)) = res {
-                return Ok(())
+                return Ok(());
             }
             Err(Errno::UnknownErrno)
         } else {

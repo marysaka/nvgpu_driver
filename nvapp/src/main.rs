@@ -1,11 +1,10 @@
-use nvmap::*;
-use nvhost::*;
 use nvgpu::*;
+use nvmap::*;
 
-use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::fmt;
+use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::marker::PhantomData;
 use std::sync::Mutex;
 
 use std::ops::Deref;
@@ -14,32 +13,44 @@ use std::ops::DerefMut;
 const PAGE_SIZE: u32 = 0x1000;
 
 static mut NVMAP_INSTANCE: *mut NvMap = std::ptr::null_mut();
-static mut NVAS_INSTANCE:  *mut AddressSpace = std::ptr::null_mut();
-static mut NVHOST_CTRL_INSTANCE:  *mut NvHostGpuCtrl = std::ptr::null_mut();
+static mut NVAS_INSTANCE: *mut AddressSpace = std::ptr::null_mut();
+static mut NVHOST_CTRL_INSTANCE: *mut NvHostGpuCtrl = std::ptr::null_mut();
 
 pub fn get_nvmap() -> &'static mut NvMap {
     unsafe { NVMAP_INSTANCE.as_mut().expect("NvMap not initialized") }
 }
 
 pub fn get_as() -> &'static mut AddressSpace {
-    unsafe { NVAS_INSTANCE.as_mut().expect("AddressSpace not initialized") }
+    unsafe {
+        NVAS_INSTANCE
+            .as_mut()
+            .expect("AddressSpace not initialized")
+    }
 }
 
 pub fn get_nvhost_gpu_ctrl() -> &'static mut NvHostGpuCtrl {
-    unsafe { NVHOST_CTRL_INSTANCE.as_mut().expect("NvHostGpuCtrl not initialized") }
+    unsafe {
+        NVHOST_CTRL_INSTANCE
+            .as_mut()
+            .expect("NvHostGpuCtrl not initialized")
+    }
 }
 
 /// A Box but availaible to the GPU
 pub struct GpuBox<T: Sized> {
     inner: GpuAllocated,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: Sized> GpuBox<T> {
     pub fn new(x: T) -> GpuBox<T> {
-        let inner = GpuAllocated::new(std::mem::size_of::<T>(), 0x20000).expect("Cannot allocate GpuBox!");
+        let inner =
+            GpuAllocated::new(std::mem::size_of::<T>(), 0x20000).expect("Cannot allocate GpuBox!");
 
-        let mut res = GpuBox { inner, phantom: PhantomData };
+        let mut res = GpuBox {
+            inner,
+            phantom: PhantomData,
+        };
 
         *res = x;
 
@@ -105,13 +116,18 @@ impl GpuAllocated {
             align as u32
         };
 
-        let size = (user_size as u32 + (PAGE_SIZE - 1)) &! (PAGE_SIZE - 1);
+        let size = (user_size as u32 + (PAGE_SIZE - 1)) & !(PAGE_SIZE - 1);
 
         let nvmap = get_nvmap();
         let nvgpu_as = get_as();
 
         let nvmap_handle = nvmap.create(size)?;
-        nvmap.allocate(&nvmap_handle, HeapMask::CARVEOUT_GENERIC, AllocationFlags::HANDLE_WRITE_COMBINE, align)?;
+        nvmap.allocate(
+            &nvmap_handle,
+            HeapMask::CARVEOUT_GENERIC,
+            AllocationFlags::HANDLE_WRITE_COMBINE,
+            align,
+        )?;
         let gpu_address = nvgpu_as.map_buffer(&nvmap_handle, 0, PAGE_SIZE, 0)?;
 
         Ok(GpuAllocated::from_raw(nvmap_handle, gpu_address, user_size))
@@ -121,7 +137,7 @@ impl GpuAllocated {
         GpuAllocated {
             handle: Mutex::new(handle),
             gpu_address,
-            user_size
+            user_size,
         }
     }
 
@@ -166,7 +182,9 @@ impl GpuAllocated {
 
         let ptr = mapped_address as *mut T;
 
-        Ok(unsafe { std::slice::from_raw_parts_mut(ptr, self.user_size() / std::mem::size_of::<T>()) })
+        Ok(unsafe {
+            std::slice::from_raw_parts_mut(ptr, self.user_size() / std::mem::size_of::<T>())
+        })
     }
 
     pub fn unmap(&self) -> NvMapResult<()> {
@@ -195,22 +213,24 @@ impl GpuAllocated {
 
 impl Drop for GpuAllocated {
     fn drop(&mut self) {
-        println!("Dropping out of scope {:?}", self);
+        //println!("Dropping out of scope {:?}", self);
 
         self.unmap().expect("Cannot unmap from CPU side");
 
         let nvgpu_as = get_as();
-        nvgpu_as.unmap_buffer(self.gpu_address()).expect("Cannot unmap GpuAllocated!");
+        nvgpu_as
+            .unmap_buffer(self.gpu_address())
+            .expect("Cannot unmap GpuAllocated!");
     }
 }
 
 #[derive(Debug, PartialEq)]
-enum CommandSubmissionMode {
+pub enum CommandSubmissionMode {
     /// ?
     IncreasingOld,
 
     /// Tells PFIFO to read as much arguments as specified by argument count, while automatically incrementing the method value.
-    /// This means that each argument will be written to a different method location. 
+    /// This means that each argument will be written to a different method location.
     Increasing,
 
     /// ?
@@ -227,10 +247,10 @@ enum CommandSubmissionMode {
     IncreasingOnce,
 }
 
-struct Command {
+pub struct Command {
     entry: GpFifoEntry,
     submission_mode: CommandSubmissionMode,
-    arguments: Vec<u32>
+    arguments: Vec<u32>,
 }
 
 impl Command {
@@ -238,7 +258,7 @@ impl Command {
         let mut res = Command {
             entry: GpFifoEntry(0),
             submission_mode,
-            arguments: Vec::new()
+            arguments: Vec::new(),
         };
 
         res.entry.set_method(method);
@@ -255,7 +275,7 @@ impl Command {
 
         res.entry.set_submission_mode(submission_mode_id);
 
-        res 
+        res
     }
 
     pub fn new_inline(method: u32, sub_channel: u32, arguments: u32) -> Self {
@@ -275,16 +295,14 @@ impl Command {
         self.push_argument(address as u32);
     }
 
-    pub fn to_gpu_allocated(mut self) -> NvGpuResult<GpuAllocated> {
+    pub fn into_gpu_allocated(mut self) -> NvGpuResult<GpuAllocated> {
         let total_size = (1 + self.arguments.len()) * std::mem::size_of::<u32>();
 
-        let mut res = GpuAllocated::new(total_size, 0x20000)?;
+        let res = GpuAllocated::new(total_size, 0x20000)?;
 
-        let mut arguments: &mut [u32] = res.map_array_mut()?;
+        let arguments: &mut [u32] = res.map_array_mut()?;
 
         self.entry.set_argument_count(self.arguments.len() as u32);
-
-        println!("to_gpu_allocated {:?}", self.entry);
 
         arguments[0] = self.entry.0;
 
@@ -299,7 +317,7 @@ impl Command {
     }
 }
 
-struct CommandStream<'a> {
+pub struct CommandStream<'a> {
     /// the inner implementation.
     fifo: GpFifoQueue<'a>,
 
@@ -311,12 +329,12 @@ impl<'a> CommandStream<'a> {
     pub fn new(channel: &'a Channel) -> Self {
         CommandStream {
             fifo: GpFifoQueue::new(channel),
-            command_list: Vec::new()
+            command_list: Vec::new(),
         }
     }
 
     pub fn push(&mut self, command: Command) -> NvGpuResult<()> {
-        let command = command.to_gpu_allocated()?;
+        let command = command.into_gpu_allocated()?;
 
         self.command_list.push(command);
 
@@ -325,7 +343,8 @@ impl<'a> CommandStream<'a> {
 
     pub fn submit(&mut self) -> NvGpuResult<()> {
         for command in &self.command_list {
-            self.fifo.append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
+            self.fifo
+                .append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
         }
 
         let res = self.fifo.submit();
@@ -338,7 +357,8 @@ impl<'a> CommandStream<'a> {
 
     pub fn submit_and_wait(&mut self) -> NvGpuResult<()> {
         for command in &self.command_list {
-            self.fifo.append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
+            self.fifo
+                .append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
         }
 
         let res = self.fifo.submit_and_wait();
@@ -348,7 +368,6 @@ impl<'a> CommandStream<'a> {
 
         res
     }
-
 }
 
 fn init_nvmap() -> std::io::Result<()> {
@@ -402,14 +421,12 @@ fn main() -> NvGpuResult<()> {
 
     let mut command_stream = CommandStream::new(&nvgpu_channel);
 
-
     let mut bind_channel_command = Command::new(0, 0, CommandSubmissionMode::Increasing);
     bind_channel_command.push_argument(0xB197);
     command_stream.push(bind_channel_command)?;
 
-    let query_stats: GpuBox<[u64; 0x2]> = GpuBox::new([0xCAFEBABE; 0x2]);
+    let query_stats: GpuBox<[u64; 0x2]> = GpuBox::new([0xCAFE_BABE; 0x2]);
     println!("query_stats[1] initial: {:x}", query_stats[1]);
-
 
     let mut query_get_timestamp = Command::new(0x6c0, 0, CommandSubmissionMode::Increasing);
     query_get_timestamp.push_address(query_stats.gpu_address());

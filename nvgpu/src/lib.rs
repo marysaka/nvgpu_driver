@@ -5,14 +5,10 @@ extern crate nix;
 #[macro_use]
 extern crate bitfield;
 
-#[macro_use]
-extern crate bitflags;
-
-use libc;
-
 use nix::errno::Errno;
-use nvmap::*;
+use nix::poll::{PollFd, PollFlags};
 use nvhost::*;
+use nvmap::*;
 
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -34,9 +30,7 @@ pub struct AddressSpace {
 
 pub type GpFifoRawOffset = u64;
 
-
-bitfield!
-{
+bitfield! {
   pub struct GpFifoEntry(u32);
   impl Debug;
   #[inline]
@@ -75,11 +69,11 @@ impl<'a> GpFifoQueue<'a> {
             channel,
             queue: [0; GPFIFO_QUEUE_SIZE],
             waiting_fence: None,
-            position: 0
+            position: 0,
         }
     }
 
-    pub fn append(&mut self, gpu_address: GpuVirtualAddress, command_count: u64, flags: u32) {
+    pub fn append(&mut self, gpu_address: GpuVirtualAddress, command_count: u64, _flags: u32) {
         if self.position >= GPFIFO_QUEUE_SIZE {
             panic!("No more space availaible in GpFifoCommandBuilder");
         }
@@ -97,17 +91,19 @@ impl<'a> GpFifoQueue<'a> {
 
         // We have something to wait on from past request.
         if waiting_fence.is_some() {
-            flags |= 1 << 0;
+            flags |= 1;
         }
 
-        self.waiting_fence = self.channel.submit_gpfifo(&self.queue[..self.position], waiting_fence, flags)?;
+        self.waiting_fence =
+            self.channel
+                .submit_gpfifo(&self.queue[..self.position], waiting_fence, flags)?;
 
         self.position = 0;
 
         Ok(())
     }
 
-    pub fn submit_and_wait(&mut self) ->NvGpuResult<()> {
+    pub fn submit_and_wait(&mut self) -> NvGpuResult<()> {
         let waiting_fence = self.waiting_fence.take();
 
         // 1 << 3 => fds
@@ -115,17 +111,17 @@ impl<'a> GpFifoQueue<'a> {
 
         // We have something to wait on from past request.
         if waiting_fence.is_some() {
-            flags |= 1 << 0;
+            flags |= 1;
         }
 
-        let waiting_fence = self.channel.submit_gpfifo(&self.queue[..self.position], waiting_fence, flags)?.expect("Expected a Fence as a result!");
+        let waiting_fence = self
+            .channel
+            .submit_gpfifo(&self.queue[..self.position], waiting_fence, flags)?
+            .expect("Expected a Fence as a result!");
 
         let fd = waiting_fence.id as RawFd;
-        use nix::poll::EventFlags;
-        use nix::poll::PollFd;
 
-        let mut poll_fds = [PollFd::new(fd, EventFlags::POLLOUT | EventFlags::POLLIN)];
-
+        let mut poll_fds = [PollFd::new(fd, PollFlags::POLLOUT | PollFlags::POLLIN)];
 
         nix::poll::poll(&mut poll_fds, -1).unwrap();
 
@@ -135,7 +131,6 @@ impl<'a> GpFifoQueue<'a> {
     }
 }
 
-
 /// Represent an nvgpu channel.
 pub struct Channel {
     /// The actual nvhost channel.
@@ -144,9 +139,10 @@ pub struct Channel {
 
 pub const KIND_DEFAULT: i32 = -1;
 
+#[allow(dead_code)]
 mod ioctl {
-    use super::GpuVirtualAddress;
     use super::GpFifoRawOffset;
+    use super::GpuVirtualAddress;
     use super::RawFence;
     use std::os::unix::io::RawFd;
 
@@ -161,7 +157,6 @@ mod ioctl {
 
     /// NvGPU TSG ioctl magic.
     const NVGPU_TSG_IOCTL_MAGIC: u8 = b'T';
-
 
     /// Represent the structure of ``NVGPU_GPU_IOCTL_ALLOC_AS``.
     #[repr(C)]
@@ -178,7 +173,6 @@ mod ioctl {
         /// ???. must me zero.
         pub reserved: u32,
     }
-
 
     /// Represent the structure of ``NVGPU_GPU_IOCTL_OPEN_CHANNEL``.
     #[repr(C)]
@@ -200,9 +194,19 @@ mod ioctl {
         pub reserved: u32,
     }
 
-    ioctl_readwrite!(ioc_ctrl_allocate_address_space, NVGPU_GPU_IOCTL_MAGIC, 8, CtrlAllocAddressSpace);
+    ioctl_readwrite!(
+        ioc_ctrl_allocate_address_space,
+        NVGPU_GPU_IOCTL_MAGIC,
+        8,
+        CtrlAllocAddressSpace
+    );
     ioctl_readwrite!(ioc_ctrl_open_tsg, NVGPU_GPU_IOCTL_MAGIC, 9, CtrlOpenTSG);
-    ioctl_readwrite!(ioc_ctrl_open_channel, NVGPU_GPU_IOCTL_MAGIC, 11, CtrlOpenChannel);
+    ioctl_readwrite!(
+        ioc_ctrl_open_channel,
+        NVGPU_GPU_IOCTL_MAGIC,
+        11,
+        CtrlOpenChannel
+    );
 
     /// Represent the structure of ``NVGPU_AS_IOCTL_BIND_CHANNEL``.
     #[repr(C)]
@@ -246,10 +250,24 @@ mod ioctl {
         pub offset: GpuVirtualAddress,
     }
 
-    ioctl_readwrite!(ioc_as_bind_channel, NVGPU_AS_IOCTL_MAGIC, 1, BindChannelArgument);
-    ioctl_readwrite!(ioc_as_unmap_buffer, NVGPU_AS_IOCTL_MAGIC, 5, UnmapBufferArguments);
-    ioctl_readwrite!(ioc_as_map_buffer_ex, NVGPU_AS_IOCTL_MAGIC, 7, MapBufferExArguments);
-
+    ioctl_readwrite!(
+        ioc_as_bind_channel,
+        NVGPU_AS_IOCTL_MAGIC,
+        1,
+        BindChannelArgument
+    );
+    ioctl_readwrite!(
+        ioc_as_unmap_buffer,
+        NVGPU_AS_IOCTL_MAGIC,
+        5,
+        UnmapBufferArguments
+    );
+    ioctl_readwrite!(
+        ioc_as_map_buffer_ex,
+        NVGPU_AS_IOCTL_MAGIC,
+        7,
+        MapBufferExArguments
+    );
 
     /// Represent the structure of ``NVGPU_IOCTL_CHANNEL_ALLOC_GPFIFO``.
     #[repr(C)]
@@ -258,14 +276,13 @@ mod ioctl {
         pub flags: u32,
     }
 
-
     /// Represent the structure of ``NVGPU_IOCTL_CHANNEL_SUBMIT_GPFIFO``.
     #[repr(C)]
     pub struct ChannelSubmitGpFifoArguments {
         pub gpfifo: *const GpFifoRawOffset,
         pub num_entries: u32,
         pub flags: u32,
-        pub fence: RawFence
+        pub fence: RawFence,
     }
 
     /// Represnet the structure of ``NVGPU_IOCTL_CHANNEL_ALLOC_OBJ_CTX``.
@@ -276,9 +293,24 @@ mod ioctl {
         pub obj_id: u64,
     }
 
-    ioctl_write_ptr!(ioc_channel_alloc_gpfifo, NVGPU_IOCTL_MAGIC, 100, ChannelAllocGpFifoArguments);
-    ioctl_readwrite!(ioc_channel_submit_gpfifo, NVGPU_IOCTL_MAGIC, 107, ChannelSubmitGpFifoArguments);
-    ioctl_readwrite!(ioc_channel_alloc_object_context, NVGPU_IOCTL_MAGIC, 108, ChannelAllocObjectContext);
+    ioctl_write_ptr!(
+        ioc_channel_alloc_gpfifo,
+        NVGPU_IOCTL_MAGIC,
+        100,
+        ChannelAllocGpFifoArguments
+    );
+    ioctl_readwrite!(
+        ioc_channel_submit_gpfifo,
+        NVGPU_IOCTL_MAGIC,
+        107,
+        ChannelSubmitGpFifoArguments
+    );
+    ioctl_readwrite!(
+        ioc_channel_alloc_object_context,
+        NVGPU_IOCTL_MAGIC,
+        108,
+        ChannelAllocObjectContext
+    );
     ioctl_none!(ioc_channel_enable, NVGPU_IOCTL_MAGIC, 113);
     ioctl_none!(ioc_channel_disable, NVGPU_IOCTL_MAGIC, 114);
 
@@ -311,12 +343,16 @@ impl NvHostGpuCtrl {
         }
     }
 
-    pub fn allocate_address_space(&self, big_page_size: u32, flags: u32) -> NvGpuResult<AddressSpace> {
+    pub fn allocate_address_space(
+        &self,
+        big_page_size: u32,
+        flags: u32,
+    ) -> NvGpuResult<AddressSpace> {
         let mut param = CtrlAllocAddressSpace {
             big_page_size,
             as_fd: 0,
             flags,
-            reserved: 0
+            reserved: 0,
         };
 
         let res = unsafe { ioc_ctrl_allocate_address_space(self.file.as_raw_fd(), &mut param) };
@@ -335,7 +371,7 @@ impl NvHostGpuCtrl {
     pub fn open_tsg(&self) -> NvGpuResult<TSGChannel> {
         let mut param = CtrlOpenTSG {
             tsg_fd: 0,
-            reserved: 0
+            reserved: 0,
         };
 
         let res = unsafe { ioc_ctrl_open_tsg(self.file.as_raw_fd(), &mut param) };
@@ -351,10 +387,14 @@ impl NvHostGpuCtrl {
         }
     }
 
-    pub fn open_channel(&self, runlist_id: i32, nvmap_instance: &NvMap, nvgpu_as: &AddressSpace, tsg: Option<&TSGChannel>) -> NvGpuResult<Channel> {
-        let mut param = CtrlOpenChannel {
-            runlist_id
-        };
+    pub fn open_channel(
+        &self,
+        runlist_id: i32,
+        nvmap_instance: &NvMap,
+        nvgpu_as: &AddressSpace,
+        tsg: Option<&TSGChannel>,
+    ) -> NvGpuResult<Channel> {
+        let mut param = CtrlOpenChannel { runlist_id };
 
         let res = unsafe { ioc_ctrl_open_channel(self.file.as_raw_fd(), &mut param) };
         if res.is_err() {
@@ -438,7 +478,6 @@ impl TSGChannel {
     }
 }
 
-
 impl AddressSpace {
     /// Create a new instance of NvMap by opening `/dev/nvhost-as-gpu`.
     pub fn new() -> std::io::Result<Self> {
@@ -463,9 +502,7 @@ impl AddressSpace {
 
     pub fn bind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
         let channel_fd = channel.as_raw_fd() as u32;
-        let mut param = BindChannelArgument {
-            channel_fd
-        };
+        let mut param = BindChannelArgument { channel_fd };
 
         let res = unsafe { ioc_as_bind_channel(self.file.as_raw_fd(), &mut param) };
         if res.is_err() {
@@ -480,11 +517,28 @@ impl AddressSpace {
         }
     }
 
-    pub fn map_buffer(&self, handle: &Handle, flags: u32, page_size: u32, fixed_address: GpuVirtualAddress) -> NvGpuResult<GpuVirtualAddress> {
+    pub fn map_buffer(
+        &self,
+        handle: &Handle,
+        flags: u32,
+        page_size: u32,
+        fixed_address: GpuVirtualAddress,
+    ) -> NvGpuResult<GpuVirtualAddress> {
         self.map_buffer_external(handle.fd, flags, 0, 0, page_size, 0, 0, fixed_address)
     }
 
-    pub fn map_buffer_external(&self, fd: RawFd, flags: u32, compr_kind: i16, incompr_kind: i16, page_size: u32, buffer_offset: u64, mapping_size: u64, fixed_address: GpuVirtualAddress) -> NvGpuResult<GpuVirtualAddress> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn map_buffer_external(
+        &self,
+        fd: RawFd,
+        flags: u32,
+        compr_kind: i16,
+        incompr_kind: i16,
+        page_size: u32,
+        buffer_offset: u64,
+        mapping_size: u64,
+        fixed_address: GpuVirtualAddress,
+    ) -> NvGpuResult<GpuVirtualAddress> {
         let mut param = MapBufferExArguments {
             flags: flags | (1 << 8),
             compr_kind,
@@ -493,7 +547,7 @@ impl AddressSpace {
             page_size,
             buffer_offset,
             mapping_size,
-            offset: fixed_address
+            offset: fixed_address,
         };
 
         let res = unsafe { ioc_as_map_buffer_ex(self.file.as_raw_fd(), &mut param) };
@@ -510,9 +564,7 @@ impl AddressSpace {
     }
 
     pub fn unmap_buffer(&self, address: GpuVirtualAddress) -> NvGpuResult<()> {
-        let mut param = UnmapBufferArguments {
-            offset: address
-        };
+        let mut param = UnmapBufferArguments { offset: address };
 
         let res = unsafe { ioc_as_unmap_buffer(self.file.as_raw_fd(), &mut param) };
         if res.is_err() {
@@ -534,8 +586,13 @@ impl Channel {
         Self::new_from_path("/dev/nvhost-gpu", nvmap_instance, nvgpu_as)
     }
 
-    pub fn new_from_path(path: &str, nvmap_instance: &NvMap, nvgpu_as: &AddressSpace) ->NvGpuResult<Self> {
-        let nvhost_channel = NvHostChannel::new(path, nvmap_instance).expect("Cannot open GPU channel");
+    pub fn new_from_path(
+        path: &str,
+        nvmap_instance: &NvMap,
+        nvgpu_as: &AddressSpace,
+    ) -> NvGpuResult<Self> {
+        let nvhost_channel =
+            NvHostChannel::new(path, nvmap_instance).expect("Cannot open GPU channel");
         let mut channel = Channel {
             inner: nvhost_channel,
         };
@@ -546,7 +603,12 @@ impl Channel {
     }
 
     /// Create a new instance of NvMap from a file descriptor.
-    pub fn new_from_raw_fd(raw_fd: RawFd, nvmap_instance: &NvMap, nvgpu_as: &AddressSpace, tsg: Option<&TSGChannel>) -> NvGpuResult<Self> {
+    pub fn new_from_raw_fd(
+        raw_fd: RawFd,
+        nvmap_instance: &NvMap,
+        nvgpu_as: &AddressSpace,
+        tsg: Option<&TSGChannel>,
+    ) -> NvGpuResult<Self> {
         let nvhost_channel = NvHostChannel::new_from_raw_fd(raw_fd, nvmap_instance)?;
         let mut channel = Channel {
             inner: nvhost_channel,
@@ -569,12 +631,12 @@ impl Channel {
     }
 
     pub fn allocate_gpfifo(&mut self, gpfifo_queue_size: usize, flags: u32) -> NvGpuResult<()> {
-        let mut param = ChannelAllocGpFifoArguments {
+        let param = ChannelAllocGpFifoArguments {
             num_entries: gpfifo_queue_size as u32,
-            flags
+            flags,
         };
 
-        let res = unsafe { ioc_channel_alloc_gpfifo(self.inner.as_raw_fd(), &mut param) };
+        let res = unsafe { ioc_channel_alloc_gpfifo(self.inner.as_raw_fd(), &param) };
         if res.is_err() {
             Err(Errno::UnknownErrno)
         } else {
@@ -587,10 +649,15 @@ impl Channel {
         }
     }
 
-    pub fn submit_gpfifo(&self, entries: &[GpFifoRawOffset], input_fence: Option<RawFence>, flags: u32) ->NvGpuResult<Option<RawFence>> {
+    pub fn submit_gpfifo(
+        &self,
+        entries: &[GpFifoRawOffset],
+        input_fence: Option<RawFence>,
+        flags: u32,
+    ) -> NvGpuResult<Option<RawFence>> {
         let input_fence = input_fence.unwrap_or_else(|| RawFence {
-                id: 0xFFFF_FFFF,
-                value: 0xFFFF_FFFF,
+            id: 0xFFFF_FFFF,
+            value: 0xFFFF_FFFF,
         });
 
         let mut param = ChannelSubmitGpFifoArguments {
@@ -637,7 +704,6 @@ impl Channel {
             }
         }
     }
-
 
     pub fn enable(&self) -> NvGpuResult<()> {
         let res = unsafe { ioc_channel_enable(self.inner.as_raw_fd()) };

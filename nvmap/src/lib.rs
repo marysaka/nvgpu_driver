@@ -1,9 +1,8 @@
 //! Userland interface for nvmap (Memory manager for Tegra GPU).
 #[macro_use]
-extern crate bitflags;
-
-#[macro_use]
 extern crate nix;
+
+use bitflags::bitflags;
 
 use nix::errno::Errno;
 
@@ -276,10 +275,7 @@ impl NvMap {
 
     /// Retrieve the file descriptor backing a memory handle.
     pub fn get_fd(&self, handle: RawHandle) -> NvMapResult<RawFd> {
-        let mut param = HandleGetFd {
-            fd: 0,
-            handle,
-        };
+        let mut param = HandleGetFd { fd: 0, handle };
 
         let res = unsafe { ioc_get_fd(self.file.as_raw_fd(), &mut param) };
         if res.is_err() {
