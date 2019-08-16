@@ -107,8 +107,6 @@ bitflags! {
 bitflags! {
     /// Allocation flags used in [NvMap::allocate]
     ///
-    /// TODO: Support tags to avoid warnings on the kernel side.
-    ///
     /// [NvMap::allocate]: struct.NvMap.html#method.allocate
     pub struct AllocationFlags: u32 {
         /// Flag the allocated region as uncacheable.
@@ -214,6 +212,11 @@ mod ioctl {
 use ioctl::*;
 
 impl NvMap {
+    /// Tag used in all nvmap allocations (NVIDIA seems to only use 0x9000 in NVRM so this will probably never conflict)
+    /// Chosen by fair dice roll.
+    /// Guaranteed to be random.
+    pub const DEFAULT_TAG: u32 = 0xCAFE;
+
     /// Create a new instance of NvMap by opening `/dev/nvmap`.
     pub fn new() -> std::io::Result<Self> {
         let file = OpenOptions::new()
@@ -301,7 +304,7 @@ impl NvMap {
         let param = AllocateHandle {
             handle: handle.raw_handle,
             heap_mask: heap_mask.bits(),
-            flags: flags.bits(),
+            flags: flags.bits() | (Self::DEFAULT_TAG << 16),
             align,
         };
 
