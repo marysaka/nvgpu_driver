@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
+use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -295,20 +296,24 @@ impl Command {
         self.push_argument(address as u32);
     }
 
-    pub fn into_gpu_allocated(mut self) -> NvGpuResult<GpuAllocated> {
-        let total_size = (1 + self.arguments.len()) * std::mem::size_of::<u32>();
-
-        let res = GpuAllocated::new(total_size, 0x20000)?;
-
-        let arguments: &mut [u32] = res.map_array_mut()?;
+    pub fn into_vec(mut self) -> Vec<u32> {
+        let mut res = Vec::new();
 
         self.entry.set_argument_count(self.arguments.len() as u32);
 
-        arguments[0] = self.entry.0;
+        res.push(self.entry.0);
+        res.append(&mut self.arguments);
 
-        for (index, argument) in self.arguments.iter().enumerate() {
-            arguments[index + 1] = *argument;
-        }
+        res
+    }
+
+    pub fn into_gpu_allocated(self) -> NvGpuResult<GpuAllocated> {
+        let vec = self.into_vec();
+
+        let res = GpuAllocated::new(vec.len() * std::mem::size_of::<u32>(), 0x20000)?;
+
+        let arguments: &mut [u32] = res.map_array_mut()?;
+        arguments.copy_from_slice(&vec[..]);
 
         res.flush()?;
         res.unmap()?;
@@ -319,54 +324,67 @@ impl Command {
 
 pub struct CommandStream<'a> {
     /// the inner implementation.
-    fifo: GpFifoQueue<'a>,
+    fifo: ManuallyDrop<GpFifoQueue<'a>>,
 
     /// A Vec containing allocation to use in fifo.
-    command_list: Vec<GpuAllocated>,
+    command_list: Vec<Command>,
+
+    /// The previous command buffers kept alive to avoid being unmap by Drop during processing of the GPFIFO.
+    in_process: ManuallyDrop<Vec<GpuAllocated>>,
+}
+
+impl<'a> Drop for CommandStream<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            ManuallyDrop::drop(&mut self.fifo);
+            ManuallyDrop::drop(&mut self.in_process);
+        }
+    }
 }
 
 impl<'a> CommandStream<'a> {
     pub fn new(channel: &'a Channel) -> Self {
         CommandStream {
-            fifo: GpFifoQueue::new(channel),
+            fifo: ManuallyDrop::new(GpFifoQueue::new(channel)),
             command_list: Vec::new(),
+            in_process: ManuallyDrop::new(Vec::new()),
         }
     }
 
     pub fn push(&mut self, command: Command) -> NvGpuResult<()> {
-        let command = command.into_gpu_allocated()?;
-
         self.command_list.push(command);
 
         Ok(())
     }
 
-    pub fn submit(&mut self) -> NvGpuResult<()> {
-        for command in &self.command_list {
-            self.fifo
-                .append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
+    pub fn flush(&mut self) -> NvGpuResult<()> {
+        let mut commands = Vec::new();
+
+        for command in self.command_list.drain(..) {
+            commands.append(&mut command.into_vec());
         }
 
-        let res = self.fifo.submit();
+        let commands_gpu = GpuAllocated::new(commands.len() * std::mem::size_of::<u32>(), 0x20000)?;
 
-        // We only clear this when the submit is done.
-        self.command_list.clear();
+        let fifo_array: &mut [u32] = commands_gpu.map_array_mut()?;
+        fifo_array.copy_from_slice(&commands[..]);
 
-        res
+        commands_gpu.flush()?;
+        commands_gpu.unmap()?;
+        self.fifo.append(
+            commands_gpu.gpu_address(),
+            (commands_gpu.user_size() as u64) / 4,
+            0,
+        );
+
+        self.in_process.push(commands_gpu);
+        self.fifo.submit()?;
+
+        Ok(())
     }
 
-    pub fn submit_and_wait(&mut self) -> NvGpuResult<()> {
-        for command in &self.command_list {
-            self.fifo
-                .append(command.gpu_address(), (command.user_size() as u64) / 4, 0)
-        }
-
-        let res = self.fifo.submit_and_wait();
-
-        // We only clear this when the submit is done.
-        self.command_list.clear();
-
-        res
+    pub fn wait_idle(&mut self) {
+        self.fifo.wait_idle().unwrap();
     }
 }
 
@@ -433,12 +451,12 @@ fn main() -> NvGpuResult<()> {
     query_get_timestamp.push_argument(0);
     query_get_timestamp.push_argument(0xf002);
     command_stream.push(query_get_timestamp)?;
-    command_stream.submit_and_wait()?;
+    command_stream.flush()?;
+
+    // Wait for the operations to be complete on the GPU side.
+    command_stream.wait_idle();
 
     println!("query_stats[1] after query_get: {:x}", query_stats[1]);
-
-    nvtsg_channel.unbind_channel(&nvgpu_channel)?;
-    nvgpu_channel.disable()?;
 
     Ok(())
 }

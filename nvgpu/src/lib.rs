@@ -63,6 +63,12 @@ pub struct GpFifoQueue<'a> {
     position: usize,
 }
 
+impl<'a> Drop for GpFifoQueue<'a> {
+    fn drop(&mut self) {
+        let _ = self.wait_idle();
+    }
+}
+
 impl<'a> GpFifoQueue<'a> {
     pub fn new(channel: &'a Channel) -> Self {
         GpFifoQueue {
@@ -103,29 +109,14 @@ impl<'a> GpFifoQueue<'a> {
         Ok(())
     }
 
-    pub fn submit_and_wait(&mut self) -> NvGpuResult<()> {
-        let waiting_fence = self.waiting_fence.take();
+    pub fn wait_idle(&mut self) -> nix::Result<()> {
+        if let Some(fence) = self.waiting_fence.take() {
+            let fd = fence.id as RawFd;
 
-        // 1 << 3 => fds
-        let mut flags = 1 << 1 | 1 << 3;
+            let mut poll_fds = [PollFd::new(fd, PollFlags::POLLOUT | PollFlags::POLLIN)];
 
-        // We have something to wait on from past request.
-        if waiting_fence.is_some() {
-            flags |= 1;
+            nix::poll::poll(&mut poll_fds, -1)?;
         }
-
-        let waiting_fence = self
-            .channel
-            .submit_gpfifo(&self.queue[..self.position], waiting_fence, flags)?
-            .expect("Expected a Fence as a result!");
-
-        let fd = waiting_fence.id as RawFd;
-
-        let mut poll_fds = [PollFd::new(fd, PollFlags::POLLOUT | PollFlags::POLLIN)];
-
-        nix::poll::poll(&mut poll_fds, -1).unwrap();
-
-        self.position = 0;
 
         Ok(())
     }
