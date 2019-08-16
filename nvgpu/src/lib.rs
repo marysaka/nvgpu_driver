@@ -211,7 +211,7 @@ mod ioctl {
     /// Represent the structure of ``NVGPU_AS_IOCTL_BIND_CHANNEL``.
     #[repr(C)]
     pub struct BindChannelArgument {
-        pub channel_fd: u32,
+        pub channel_fd: RawFd,
     }
 
     /// Represent the structure of ``NVGPU_AS_IOCTL_UNMAP_BUFFER``
@@ -234,7 +234,7 @@ mod ioctl {
         pub incompr_kind: i16,
 
         /// Input.
-        pub dmabuf_fd: u32,
+        pub dmabuf_fd: RawFd,
 
         /// Input/Output.
         pub page_size: u32,
@@ -314,8 +314,8 @@ mod ioctl {
     ioctl_none!(ioc_channel_enable, NVGPU_IOCTL_MAGIC, 113);
     ioctl_none!(ioc_channel_disable, NVGPU_IOCTL_MAGIC, 114);
 
-    ioctl_write_ptr!(ioc_tsg_bind_channel, NVGPU_TSG_IOCTL_MAGIC, 1, u32);
-    ioctl_write_ptr!(ioc_tsg_unbind_channel, NVGPU_TSG_IOCTL_MAGIC, 2, u32);
+    ioctl_write_ptr!(ioc_tsg_bind_channel, NVGPU_TSG_IOCTL_MAGIC, 1, RawFd);
+    ioctl_write_ptr!(ioc_tsg_unbind_channel, NVGPU_TSG_IOCTL_MAGIC, 2, RawFd);
 }
 
 use ioctl::*;
@@ -444,7 +444,7 @@ impl TSGChannel {
     }
 
     pub fn bind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
-        let channel_fd = channel.as_raw_fd() as u32;
+        let channel_fd = channel.as_raw_fd();
         let res = unsafe { ioc_tsg_bind_channel(self.file.as_raw_fd(), &channel_fd) };
         //let errno = unsafe { libc::ioctl(self.file.as_raw_fd(), 0x40045401, &arg as *const i64)  };
 
@@ -461,7 +461,7 @@ impl TSGChannel {
     }
 
     pub fn unbind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
-        let channel_fd = channel.as_raw_fd() as u32;
+        let channel_fd = channel.as_raw_fd();
         let res = unsafe { ioc_tsg_unbind_channel(self.file.as_raw_fd(), &channel_fd) };
         //let errno = unsafe { libc::ioctl(self.file.as_raw_fd(), 0x40045401, &arg as *const i64)  };
 
@@ -501,7 +501,7 @@ impl AddressSpace {
     }
 
     pub fn bind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
-        let channel_fd = channel.as_raw_fd() as u32;
+        let channel_fd = channel.as_raw_fd();
         let mut param = BindChannelArgument { channel_fd };
 
         let res = unsafe { ioc_as_bind_channel(self.file.as_raw_fd(), &mut param) };
@@ -530,7 +530,7 @@ impl AddressSpace {
     #[allow(clippy::too_many_arguments)]
     pub fn map_buffer_external(
         &self,
-        fd: RawFd,
+        dmabuf_fd: RawFd,
         flags: u32,
         compr_kind: i16,
         incompr_kind: i16,
@@ -543,7 +543,7 @@ impl AddressSpace {
             flags: flags | (1 << 8),
             compr_kind,
             incompr_kind,
-            dmabuf_fd: fd as u32,
+            dmabuf_fd,
             page_size,
             buffer_offset,
             mapping_size,
@@ -656,7 +656,7 @@ impl Channel {
         flags: u32,
     ) -> NvGpuResult<Option<RawFence>> {
         let input_fence = input_fence.unwrap_or_else(|| RawFence {
-            id: 0xFFFF_FFFF,
+            id: -1,
             value: 0xFFFF_FFFF,
         });
 

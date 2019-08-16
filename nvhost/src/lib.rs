@@ -12,7 +12,7 @@ use std::os::unix::io::FromRawFd;
 use std::os::unix::io::RawFd;
 
 /// Represent a SyncPoint identifier.
-pub type SyncPointId = u32;
+pub type SyncPointId = i32;
 
 /// Represent the raw representation of a fence
 #[repr(C)]
@@ -122,6 +122,7 @@ impl From<ChannelPriority> for u32 {
 /// NvHost IOCTLs
 #[allow(dead_code)]
 mod ioctl {
+    use std::os::unix::io::RawFd;
     use super::Characteristics;
     use super::CommandBuffer;
     use super::CommandBufferExt;
@@ -133,6 +134,7 @@ mod ioctl {
     use super::SyncPointId;
     use super::SyncPointIncrement;
     use super::WaitChk;
+
 
     /// NvHost ioctl magic.
     const NVHOST_IOCTL_MAGIC: u8 = b'H';
@@ -298,7 +300,7 @@ mod ioctl {
     /// Represent the structure of ``NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD``.
     #[repr(packed)]
     pub struct SetNvMapFdArguments {
-        pub fd: u32,
+        pub fd: RawFd,
     }
 
     /// Represent the structure of ``NVHOST_IOCTL_CHANNEL_GET_CLK_RATE`` and ``NVHOST_IOCTL_CHANNEL_SET_CLK_RATE``.
@@ -587,8 +589,8 @@ impl NvHostChannel {
     }
 
     /// Assign the given nvmap file descriptor to this channel.
-    pub fn set_nvmap_fd(&self, raw_fd: RawFd) -> NvHostResult<()> {
-        let param = SetNvMapFdArguments { fd: raw_fd as u32 };
+    pub fn set_nvmap_fd(&self, fd: RawFd) -> NvHostResult<()> {
+        let param = SetNvMapFdArguments { fd };
 
         let res = unsafe { ioc_channel_set_nvmap_fd(self.file.as_raw_fd(), &param) };
         if res.is_err() {
