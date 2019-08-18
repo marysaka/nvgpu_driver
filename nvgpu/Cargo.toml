@@ -11,3 +11,7 @@ bitflags = "1.0"
 bitfield = "0.13"
 nix = "0.15.0"
 libc = "0.2"
+
+[[bin]]
+name = "nvgpu_gpfifo_decoder"
+path = "src/bin/gpfifo_decoder.rs"
