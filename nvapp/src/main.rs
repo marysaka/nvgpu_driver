@@ -472,20 +472,30 @@ fn main() -> NvGpuResult<()> {
 
     setup_channel(&mut command_stream)?;
 
-    let query_stats: GpuBox<[u64; 0x2]> = GpuBox::new([0xCAFE_BABE; 0x2]);
-    println!("query_stats[1] initial: {:x}", query_stats[1]);
+    let semaphore_a: GpuBox<[u64; 0x2]> = GpuBox::new([0xCAFE_BABE; 0x2]);
+    println!("semaphore_a initial: {:?}", &semaphore_a[..]);
 
-    let mut query_get_timestamp = Command::new(0x6c0, 1, CommandSubmissionMode::Increasing);
-    query_get_timestamp.push_address(query_stats.gpu_address());
-    query_get_timestamp.push_argument(0);
-    query_get_timestamp.push_argument(0);
-    command_stream.push(query_get_timestamp)?;
+    // ReportSemaphore: https://github.com/NVIDIA/open-gpu-doc/blob/09307cb4f9b0352b3045fde1d3f058197b01d018/classes/compute/clb1c0.h#L882
+    let mut report_semaphore_a = Command::new(0x6c0, 1, CommandSubmissionMode::Increasing);
+
+    // Semaphore offset
+    report_semaphore_a.push_address(semaphore_a.gpu_address());
+    // Semaphore payload
+    report_semaphore_a.push_argument(0);
+
+    // Semaphore control (release, four words)
+    report_semaphore_a.push_argument(0);
+
+    // Push the command
+    command_stream.push(report_semaphore_a)?;
+
+    // Send the commands to the GPU.
     command_stream.flush()?;
 
     // Wait for the operations to be complete on the GPU side.
     command_stream.wait_idle();
 
-    println!("query_stats[1] after query_get: {:x}", query_stats[1]);
+    println!("semaphore_a[1] after query_get: {:?}", &semaphore_a[..]);
 
     Ok(())
 }
