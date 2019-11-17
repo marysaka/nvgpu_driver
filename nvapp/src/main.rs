@@ -425,6 +425,37 @@ fn init_nvhost_gpu_control() -> std::io::Result<()> {
     Ok(())
 }
 
+fn setup_channel(stream : &mut CommandStream) -> NvGpuResult<()> {
+    // Bind subchannel 0, 3D
+    let mut bind_channel_command = Command::new(0, 0, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(ClassId::MAXWELL_B_3D.0);
+    stream.push(bind_channel_command)?;
+
+    // Bind subchannel 1, Compute
+    let mut bind_channel_command = Command::new(0, 1, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(ClassId::MAXWELL_B_COMPUTE.0);
+    stream.push(bind_channel_command)?;
+
+    // Bind subchannel 2, Inline To Memory
+    let mut bind_channel_command = Command::new(0, 2, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(ClassId::INLINE_TO_MEMORY.0);
+    stream.push(bind_channel_command)?;
+
+    // Bind subchannel 3, 2D
+    let mut bind_channel_command = Command::new(0, 3, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(ClassId::MAXWELL_A_2D.0);
+    stream.push(bind_channel_command)?;
+
+    // Bind subchannel 4, DMA
+    let mut bind_channel_command = Command::new(0, 4, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(ClassId::MAXWELL_B_DMA.0);
+    stream.push(bind_channel_command)?;
+
+    stream.wait_idle();
+
+    Ok(())
+}
+
 fn main() -> NvGpuResult<()> {
     init_nvhost_gpu_control().unwrap();
     init_nvmap().unwrap();
@@ -439,17 +470,15 @@ fn main() -> NvGpuResult<()> {
 
     let mut command_stream = CommandStream::new(&nvgpu_channel);
 
-    let mut bind_channel_command = Command::new(0, 0, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(0xB197);
-    command_stream.push(bind_channel_command)?;
+    setup_channel(&mut command_stream)?;
 
     let query_stats: GpuBox<[u64; 0x2]> = GpuBox::new([0xCAFE_BABE; 0x2]);
     println!("query_stats[1] initial: {:x}", query_stats[1]);
 
-    let mut query_get_timestamp = Command::new(0x6c0, 0, CommandSubmissionMode::Increasing);
+    let mut query_get_timestamp = Command::new(0x6c0, 1, CommandSubmissionMode::Increasing);
     query_get_timestamp.push_address(query_stats.gpu_address());
     query_get_timestamp.push_argument(0);
-    query_get_timestamp.push_argument(0xf002);
+    query_get_timestamp.push_argument(0);
     command_stream.push(query_get_timestamp)?;
     command_stream.flush()?;
 

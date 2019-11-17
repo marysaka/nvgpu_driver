@@ -61,7 +61,7 @@ impl GpFifoDecoder {
         let entry = GpFifoEntry(raw_value);
         let args_range = 0..Self::arguments_count(&entry);
 
-        let arguments_list: Vec<String> = args_range.into_iter().map(|value| format!("uint32_t arg{}", value)).collect();
+        let arguments_list: Vec<String> = args_range.map(|value| format!("uint32_t arg{}", value)).collect();
 
         let arguments_string = arguments_list.join(", ");
 
