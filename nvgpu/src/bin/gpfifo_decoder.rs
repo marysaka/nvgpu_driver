@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 struct GpFifoDecoder {
     raw_entry: GpFifoEntry,
     arguments: BTreeMap<u32, Option<u32>>,
-    next_index: u32
+    next_index: u32,
 }
 
 impl GpFifoDecoder {
@@ -18,17 +18,18 @@ impl GpFifoDecoder {
         let mut res = GpFifoDecoder {
             raw_entry: GpFifoEntry(entry),
             arguments: BTreeMap::new(),
-            next_index: 0
+            next_index: 0,
         };
 
         let args_range = 0..Self::arguments_count(&res.raw_entry);
 
-        for i in args_range.into_iter() {
+        for i in args_range {
             res.arguments.insert(i as u32, None);
         }
 
         if res.raw_entry.submission_mode() == 4 {
-            res.arguments.insert(0, Some(res.raw_entry.inline_arguments()));
+            res.arguments
+                .insert(0, Some(res.raw_entry.inline_arguments()));
             res.next_index += 1;
         }
 
@@ -60,7 +61,9 @@ impl GpFifoDecoder {
         let entry = GpFifoEntry(raw_value);
         let args_range = 0..Self::arguments_count(&entry);
 
-        let arguments_list: Vec<String> = args_range.map(|value| format!("uint32_t arg{}", value)).collect();
+        let arguments_list: Vec<String> = args_range
+            .map(|value| format!("uint32_t arg{}", value))
+            .collect();
 
         let arguments_string = arguments_list.join(", ");
 
@@ -71,10 +74,15 @@ impl GpFifoDecoder {
             3 => "NonIncreasing",
             4 => "Inline",
             5 => "IncreasingOnce",
-            _ => unimplemented!()
+            _ => unimplemented!(),
         };
 
-        res.push(format!("// Submission Mode: {}, Sub Channel Id: {}, envytools offset: 0x{:04x}\n", submission_mode_str, entry.sub_channel(), entry.method() * 4));
+        res.push(format!(
+            "// Submission Mode: {}, Sub Channel Id: {}, envytools offset: 0x{:04x}\n",
+            submission_mode_str,
+            entry.sub_channel(),
+            entry.method() * 4
+        ));
         res.push(format!("void method_{:x}(", entry.method()));
         res.push(arguments_string);
         res.push(String::from(")\n"));
@@ -82,10 +90,16 @@ impl GpFifoDecoder {
 
         let mut argument_offset = entry.method();
 
-        for i in (0..Self::arguments_count(&entry)).into_iter() {
-            res.push(format!("    REGISTERS[0x{:x}] = arg{};\n", argument_offset, i));
+        for i in 0..Self::arguments_count(&entry) {
+            res.push(format!(
+                "    REGISTERS[0x{:x}] = arg{};\n",
+                argument_offset, i
+            ));
 
-            if entry.submission_mode() == 0 || entry.submission_mode() == 1 || (entry.submission_mode() == 5 && i == 0) {
+            if entry.submission_mode() == 0
+                || entry.submission_mode() == 1
+                || (entry.submission_mode() == 5 && i == 0)
+            {
                 argument_offset += 1;
             }
         }
@@ -100,24 +114,27 @@ impl GpFifoDecoder {
 
         res.push(format!("method_{:x}(", self.raw_entry.method()));
 
-        let arguments_list: Vec<String> = self.arguments.iter().map(|(_, value)| {
-            if let Some(value) = value {
-                format!("0x{:x}", value)
-            } else {
-                String::from("???")
-            }
-        }).collect();
+        let arguments_list: Vec<String> = self
+            .arguments
+            .iter()
+            .map(|(_, value)| {
+                if let Some(value) = value {
+                    format!("0x{:x}", value)
+                } else {
+                    String::from("???")
+                }
+            })
+            .collect();
 
         let arguments_string = arguments_list.join(", ");
         res.push(arguments_string);
         res.push(String::from(");\n"));
-        
+
         res.iter().flat_map(|s| s.chars()).collect()
     }
 }
 
 fn main() {
-
     if env::args().len() < 2 {
         let app_name = env::args().nth(0).unwrap();
         println!("usage: {} cmds.txt", app_name);
@@ -139,7 +156,7 @@ fn main() {
 
         if current_entry.is_none() {
             if value.is_none() {
-               continue; 
+                continue;
             }
 
             let value = value.unwrap();
@@ -155,7 +172,6 @@ fn main() {
             } else {
                 method_calls.push(entry);
             }
-
         } else {
             let mut entry = current_entry.take().unwrap();
 
@@ -183,5 +199,4 @@ fn main() {
     for method_call in method_calls {
         println!("{}", method_call.to_method_call());
     }
-
 }

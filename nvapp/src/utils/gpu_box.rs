@@ -1,9 +1,9 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::sync::Mutex;
 
 use nvgpu::*;

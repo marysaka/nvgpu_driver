@@ -1,11 +1,11 @@
 use nvgpu::*;
 use nvmap::*;
 
-pub mod gpu_box;
 pub mod command_stream;
+pub mod gpu_box;
 
-pub use gpu_box::*;
 pub use command_stream::*;
+pub use gpu_box::*;
 
 static mut NVMAP_INSTANCE: *mut NvMap = std::ptr::null_mut();
 static mut NVAS_INSTANCE: *mut AddressSpace = std::ptr::null_mut();
@@ -63,8 +63,9 @@ pub fn initialize() -> std::io::Result<nvgpu::Channel> {
     Ok(nvgpu_channel)
 }
 
-pub fn initialize_command_stream<'a>(channel: &'a nvgpu::Channel) -> NvGpuResult<CommandStream<'a>> {
-    
+pub fn initialize_command_stream<'a>(
+    channel: &'a nvgpu::Channel,
+) -> NvGpuResult<CommandStream<'a>> {
     let mut command_stream = CommandStream::new(&channel);
 
     setup_channel(&mut command_stream)?;

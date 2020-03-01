@@ -1,5 +1,5 @@
-use nvgpu::*;
 use super::GpuAllocated;
+use nvgpu::*;
 
 use std::fmt::Debug;
 
@@ -28,14 +28,24 @@ pub enum CommandSubmissionMode {
     IncreasingOnce,
 }
 
-enum_with_val! {
-    #[derive(PartialEq, Eq, Clone, Copy)]
-    pub struct SubChannelId(pub u32) {
-        THREE_D = 0,
-        COMPUTE = 1,
-        INLINE_TO_MEMORY = 2,
-        TWO_D = 3,
-        DMA = 4,
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub enum SubChannelId {
+    ThreeD,
+    Compute,
+    InlineToMemory,
+    TwoD,
+    DirectMemoryAccess
+}
+
+impl From<SubChannelId> for u32 {
+    fn from(sub_channel_id: SubChannelId) -> u32 {
+        match sub_channel_id {
+            SubChannelId::ThreeD => 0,
+            SubChannelId::Compute => 1,
+            SubChannelId::InlineToMemory => 2,
+            SubChannelId::TwoD => 3,
+            SubChannelId::DirectMemoryAccess => 4,
+        }
     }
 }
 
@@ -46,8 +56,12 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn new(method: u32, sub_channel: SubChannelId, submission_mode: CommandSubmissionMode) -> Self {
-        Self::new_raw(method, sub_channel.0, submission_mode)
+    pub fn new(
+        method: u32,
+        sub_channel: SubChannelId,
+        submission_mode: CommandSubmissionMode,
+    ) -> Self {
+        Self::new_raw(method, u32::from(sub_channel), submission_mode)
     }
 
     pub fn new_raw(method: u32, sub_channel: u32, submission_mode: CommandSubmissionMode) -> Self {
@@ -183,30 +197,38 @@ impl<'a> CommandStream<'a> {
     }
 }
 
-pub fn setup_channel(stream : &mut CommandStream) -> NvGpuResult<()> {
+pub fn setup_channel(stream: &mut CommandStream) -> NvGpuResult<()> {
     // Bind subchannel 0, 3D
-    let mut bind_channel_command = Command::new(0, SubChannelId::THREE_D, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(ClassId::MAXWELL_B_3D.0);
+    let mut bind_channel_command =
+        Command::new(0, SubChannelId::ThreeD, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(u32::from(ClassId::MAXWELL_B_3D));
     stream.push(bind_channel_command)?;
 
     // Bind subchannel 1, Compute
-    let mut bind_channel_command = Command::new(0, SubChannelId::COMPUTE, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(ClassId::MAXWELL_B_COMPUTE.0);
+    let mut bind_channel_command =
+        Command::new(0, SubChannelId::Compute, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(u32::from(ClassId::MAXWELL_B_COMPUTE));
     stream.push(bind_channel_command)?;
 
     // Bind subchannel 2, Inline To Memory
-    let mut bind_channel_command = Command::new(0, SubChannelId::INLINE_TO_MEMORY, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(ClassId::INLINE_TO_MEMORY.0);
+    let mut bind_channel_command = Command::new(
+        0,
+        SubChannelId::InlineToMemory,
+        CommandSubmissionMode::Increasing,
+    );
+    bind_channel_command.push_argument(u32::from(ClassId::INLINE_TO_MEMORY));
     stream.push(bind_channel_command)?;
 
     // Bind subchannel 3, 2D
-    let mut bind_channel_command = Command::new(0, SubChannelId::TWO_D, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(ClassId::MAXWELL_A_2D.0);
+    let mut bind_channel_command =
+        Command::new(0, SubChannelId::TwoD, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(u32::from(ClassId::MAXWELL_A_2D));
     stream.push(bind_channel_command)?;
 
     // Bind subchannel 4, DMA
-    let mut bind_channel_command = Command::new(0, SubChannelId::DMA, CommandSubmissionMode::Increasing);
-    bind_channel_command.push_argument(ClassId::MAXWELL_B_DMA.0);
+    let mut bind_channel_command =
+        Command::new(0, SubChannelId::DirectMemoryAccess, CommandSubmissionMode::Increasing);
+    bind_channel_command.push_argument(u32::from(ClassId::MAXWELL_B_DMA));
     stream.push(bind_channel_command)?;
 
     stream.wait_idle();
