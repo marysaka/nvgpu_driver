@@ -9,3 +9,5 @@ nvmap = { path = "../nvmap" }
 nvhost = { path = "../nvhost" }
 nvgpu = { path = "../nvgpu" }
 byteorder = "1"
+bitflags = "1.0"
+bitfield = "0.13"

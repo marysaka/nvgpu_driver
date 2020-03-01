@@ -39,7 +39,6 @@ impl GpFifoDecoder {
         assert!(!self.is_complete());
 
         self.arguments.insert(self.next_index, argument);
-        println!("{:?}", self.arguments);
 
         self.next_index += 1;
     }
