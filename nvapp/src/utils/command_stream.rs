@@ -88,8 +88,8 @@ impl Command {
         res
     }
 
-    pub fn new_inline(method: u32, sub_channel: u32, arguments: u32) -> Self {
-        let mut res = Self::new_raw(method, sub_channel, CommandSubmissionMode::Inline);
+    pub fn new_inline(method: u32, sub_channel: SubChannelId, arguments: u32) -> Self {
+        let mut res = Self::new_raw(method, u32::from(sub_channel), CommandSubmissionMode::Inline);
         res.entry.set_inline_arguments(arguments);
 
         res

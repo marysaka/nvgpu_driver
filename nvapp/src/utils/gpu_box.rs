@@ -52,6 +52,10 @@ impl<T: Sized> GpuBox<T> {
     pub fn gpu_address(&self) -> GpuVirtualAddress {
         self.inner.gpu_address()
     }
+
+    pub fn user_size(&self) -> usize {
+        self.inner.user_size()
+    }
 }
 
 impl<T: Sized> Deref for GpuBox<T> {
