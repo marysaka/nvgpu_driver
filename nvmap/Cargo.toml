@@ -6,8 +6,7 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.0"
-nix = "0.15.0"
-
+nix = "0.22.0"
 [[bin]]
 name = "nvmap_testing"
 path = "src/bin/testing.rs"

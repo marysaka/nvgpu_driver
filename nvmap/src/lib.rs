@@ -336,15 +336,7 @@ impl NvMap {
                 handle.fd,
                 0,
             )
-        }
-        .or_else(|x| {
-            let errno_opt = x.as_errno();
-            if let Some(errno) = errno_opt {
-                Err(errno)
-            } else {
-                Err(Errno::UnknownErrno)
-            }
-        })?;
+        }?;
 
         handle.mapped_address = Some(mmap_res as *mut u8);
         Ok(())
@@ -353,14 +345,7 @@ impl NvMap {
     /// Unmap the backed GPU memory of a given memory handle from the application address space.
     pub fn unmap(&self, handle: &mut Handle) -> NvMapResult<()> {
         if let Some(addr) = handle.addr() {
-            unsafe { munmap(addr as *mut _, handle.size as usize) }.or_else(|x| {
-                let errno_opt = x.as_errno();
-                if let Some(errno) = errno_opt {
-                    Err(errno)
-                } else {
-                    Err(Errno::UnknownErrno)
-                }
-            })?;
+            unsafe { munmap(addr as *mut _, handle.size as usize) }?;
 
             handle.mapped_address = None;
         }

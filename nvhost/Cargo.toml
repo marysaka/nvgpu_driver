@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 nvmap = { path = "../nvmap" }
-nix = "0.15.0"
+nix = "0.22.0"
 
 [[bin]]
 name = "nvhost_testing"

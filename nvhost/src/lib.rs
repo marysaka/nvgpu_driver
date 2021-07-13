@@ -623,7 +623,7 @@ impl NvHostChannel {
         let res = unsafe { ioc_channel_set_timeslice(self.file.as_raw_fd(), &param) };
         if res.is_err() {
             // FIXME: this is unimplemented on R32.2
-            if let Err(nix::Error::Sys(Errno::ENOTTY)) = res {
+            if let Err(Errno::ENOTTY) = res {
                 return Ok(());
             }
             Err(Errno::UnknownErrno)
