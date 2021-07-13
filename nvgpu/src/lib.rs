@@ -23,7 +23,7 @@ pub enum ClassId {
     MAXWELL_B_COMPUTE,
     INLINE_TO_MEMORY,
     MAXWELL_A_2D,
-    MAXWELL_B_DMA
+    MAXWELL_B_DMA,
 }
 
 impl From<ClassId> for u32 {

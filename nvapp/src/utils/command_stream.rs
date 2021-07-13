@@ -34,7 +34,7 @@ pub enum SubChannelId {
     Compute,
     InlineToMemory,
     TwoD,
-    DirectMemoryAccess
+    DirectMemoryAccess,
 }
 
 impl From<SubChannelId> for u32 {
@@ -89,7 +89,11 @@ impl Command {
     }
 
     pub fn new_inline(method: u32, sub_channel: SubChannelId, arguments: u32) -> Self {
-        let mut res = Self::new_raw(method, u32::from(sub_channel), CommandSubmissionMode::Inline);
+        let mut res = Self::new_raw(
+            method,
+            u32::from(sub_channel),
+            CommandSubmissionMode::Inline,
+        );
         res.entry.set_inline_arguments(arguments);
 
         res
@@ -226,8 +230,11 @@ pub fn setup_channel(stream: &mut CommandStream) -> NvGpuResult<()> {
     stream.push(bind_channel_command)?;
 
     // Bind subchannel 4, DMA
-    let mut bind_channel_command =
-        Command::new(0, SubChannelId::DirectMemoryAccess, CommandSubmissionMode::Increasing);
+    let mut bind_channel_command = Command::new(
+        0,
+        SubChannelId::DirectMemoryAccess,
+        CommandSubmissionMode::Increasing,
+    );
     bind_channel_command.push_argument(u32::from(ClassId::MAXWELL_B_DMA));
     stream.push(bind_channel_command)?;
 

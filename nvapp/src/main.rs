@@ -6,11 +6,11 @@ use nvgpu::NvGpuResult;
 #[macro_use]
 extern crate bitfield;
 
-mod utils;
 mod maxwell;
+mod utils;
 
-use maxwell::threed::*;
 use maxwell::dma::*;
+use maxwell::threed::*;
 use utils::GpuBox;
 
 fn main() -> NvGpuResult<()> {
@@ -42,7 +42,7 @@ fn main() -> NvGpuResult<()> {
         &mut command_stream,
         copy_res_buffer.gpu_address(),
         query_res_buffer.gpu_address(),
-        query_res_buffer.user_size() as u32
+        query_res_buffer.user_size() as u32,
     )?;
 
     // Send the commands to the GPU.

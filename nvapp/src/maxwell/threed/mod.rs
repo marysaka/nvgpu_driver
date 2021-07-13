@@ -1,7 +1,6 @@
 use crate::utils::{Command, CommandStream, CommandSubmissionMode, SubChannelId};
 use nvgpu::{GpuVirtualAddress, NvGpuResult};
 
-
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ReportCounterType {
     Zero,

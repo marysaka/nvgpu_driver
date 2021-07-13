@@ -6,7 +6,7 @@ pub enum DataTransferType {
     None,
     Pipelined,
     NonPipelined,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<DataTransferType> for u32 {
@@ -36,7 +36,7 @@ pub enum SemaphoreType {
     None,
     ReleaseOneWord,
     ReleaseFourWord,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<SemaphoreType> for u32 {
@@ -66,7 +66,7 @@ pub enum InterruptType {
     None,
     Blocking,
     NonBlocking,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<InterruptType> for u32 {
@@ -95,7 +95,7 @@ impl From<u32> for InterruptType {
 pub enum MemoryLayout {
     BlockLinear,
     Pitch,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<MemoryLayout> for u32 {
@@ -122,7 +122,7 @@ impl From<u32> for MemoryLayout {
 pub enum MemoryType {
     Virtual,
     Physical,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<MemoryType> for u32 {
@@ -156,7 +156,7 @@ pub enum SemaphoreReduction {
     Increment,
     Decrement,
     FAdd,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<SemaphoreReduction> for u32 {
@@ -195,12 +195,11 @@ impl From<u32> for SemaphoreReduction {
     }
 }
 
-
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum BypassL2 {
     UsePteSetting,
     ForceVolatile,
-    Unknown(u32)
+    Unknown(u32),
 }
 
 impl From<BypassL2> for u32 {
@@ -288,7 +287,11 @@ pub fn memcpy_1d(
     size: u32,
 ) -> NvGpuResult<()> {
     // Setup lines to 1
-    command_stream.push(Command::new_inline(0x107, SubChannelId::DirectMemoryAccess, 1))?;
+    command_stream.push(Command::new_inline(
+        0x107,
+        SubChannelId::DirectMemoryAccess,
+        1,
+    ))?;
 
     let mut setup_dst = Command::new(
         0x1C5,
@@ -324,7 +327,7 @@ pub fn memcpy_1d(
     let mut setup_io = Command::new(
         0x100,
         SubChannelId::DirectMemoryAccess,
-        CommandSubmissionMode::Increasing
+        CommandSubmissionMode::Increasing,
     );
 
     setup_io.push_address(src);
@@ -345,8 +348,9 @@ pub fn memcpy_1d(
     let mut launch_dma_command = Command::new(
         0xC0,
         SubChannelId::DirectMemoryAccess,
-        CommandSubmissionMode::Increasing);
-    
+        CommandSubmissionMode::Increasing,
+    );
+
     let mut launch_dma = LaunchDma::new();
 
     launch_dma.set_data_transfer(DataTransferType::NonPipelined);
