@@ -78,9 +78,10 @@ impl GpFifoDecoder {
         };
 
         res.push(format!(
-            "// Submission Mode: {}, Sub Channel Id: {}, envytools offset: 0x{:08x}\n",
+            "// Submission Mode: {}, Sub Channel Id: {}, offset pad4: 0x{:04x}, offset pad8: 0x{:08x}\n",
             submission_mode_str,
             entry.sub_channel(),
+            entry.method() * 4,
             entry.method() * 4
         ));
         res.push(format!("void method_{:x}(", entry.method()));

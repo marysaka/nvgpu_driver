@@ -1,6 +1,7 @@
 use super::GpuAllocated;
 use nvgpu::*;
 
+use std::convert::TryInto;
 use std::fmt::Debug;
 
 use std::mem::ManuallyDrop;
@@ -107,6 +108,27 @@ impl Command {
     pub fn push_address(&mut self, address: GpuVirtualAddress) {
         self.push_argument((address >> 32) as u32);
         self.push_argument(address as u32);
+    }
+
+    pub fn push_inlined_buffer(&mut self, data: &[u8]) {
+        let data_len = (data.len() + 3) / 4;
+
+        let is_aligned = data.len() % 4 == 0;
+
+        for i in 0..data_len {
+            // In case the end isn't aligned we need to pad it with one byte.
+            if i == data_len - 1 && !is_aligned {
+                let mut temp = [0x0; 4];
+
+                temp[..3].copy_from_slice(&data[i * 4..]);
+
+                self.push_argument(u32::from_le_bytes(temp));
+            } else {
+                self.push_argument(u32::from_le_bytes(
+                    data[i * 4..(i + 1) * 4].try_into().unwrap(),
+                ))
+            }
+        }
     }
 
     pub fn into_vec(mut self) -> Vec<u32> {
