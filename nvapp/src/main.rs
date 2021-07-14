@@ -47,12 +47,10 @@ fn main() -> NvGpuResult<()> {
         query_res_buffer.user_size() as u32,
     )?;
 
-    let test_value = 42u32;
-
     memcpy_inline_host_to_device(
         &mut command_stream,
         copy_res_buffer.gpu_address(),
-        &test_value.to_le_bytes()[..],
+        &[42],
     )?;
 
     // Send the commands to the GPU.
