@@ -1,3 +1,4 @@
+pub mod common;
 pub mod compute;
 pub mod dma;
 pub mod i2m;

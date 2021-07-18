@@ -10,10 +10,12 @@ mod maxwell;
 mod utils;
 
 use crate::utils::{Command, CommandStream, CommandSubmissionMode, SubChannelId};
+use maxwell::common::*;
 use maxwell::compute::*;
 use maxwell::dma::*;
 use maxwell::threed::*;
 use utils::GpuBox;
+
 
 fn main() -> NvGpuResult<()> {
     let nvgpu_channel = utils::initialize().unwrap();
@@ -61,6 +63,25 @@ fn main() -> NvGpuResult<()> {
 
     println!("query_res_buffer: {:?}", &query_res_buffer[..]);
     println!("copy_res_buffer: {:?}", &copy_res_buffer[..]);
+
+    let mut qmd = QueueMetaData17([0x0; 0x40]);
+
+    qmd.set_dependent_qmd_pointer(0x42);
+
+    let mut release = QueueMetaData17Release([0x0; 0x3]);
+
+    release.set_payload(u32::MAX);
+
+    qmd.set_release(0, &release);
+    qmd.set_release(1, &release);
+
+    let const_buffer = QueueMetaData17ConstantBuffer(0x0);
+
+    qmd.set_constant_buffer(0, &const_buffer);
+
+    println!("qmd[6]: {}", &qmd.0[0x17 + 2]);
+    println!("qmd: {:?}", &qmd.0[..]);
+
 
     Ok(())
 }
