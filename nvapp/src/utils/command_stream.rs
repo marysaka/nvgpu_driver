@@ -1,10 +1,10 @@
 use super::GpuAllocated;
 use nvgpu::*;
 
-use std::convert::TryInto;
-use std::fmt::Debug;
+use core::convert::TryInto;
+use core::fmt::Debug;
 
-use std::mem::ManuallyDrop;
+use core::mem::ManuallyDrop;
 
 #[derive(Debug, PartialEq)]
 pub enum CommandSubmissionMode {
@@ -118,7 +118,6 @@ impl Command {
         for i in 0..data_len {
             // In case the end isn't aligned we need to pad it with one byte.
             if i == data_len - 1 && rest_len != 0 {
-
                 let mut temp = [0x0; 4];
 
                 temp[..rest_len].copy_from_slice(&data[i * 4..]);

@@ -150,11 +150,79 @@ pub struct Channel {
     inner: NvHostChannel,
 }
 
+#[repr(C, align(8))]
+#[derive(Default, Debug)]
+pub struct GpuCharacteristics {
+    pub arch: u32,
+    pub gpu_impl: u32,
+    pub rev: u32,
+    pub num_gpc: u32,
+
+    pub l2_cache_size: u64,
+    pub on_board_video_memory_size: u64,
+
+    pub num_tpc_per_gpc: u32,
+    pub bus_type: u32,
+
+    pub big_page_size: u32,
+    pub compression_page_size: u32,
+
+    pub pde_coverage_bit_count: u32,
+
+    pub available_big_page_sizes: u32,
+
+    pub flags: u64,
+
+    pub twod_class: u32,
+    pub threed_class: u32,
+    pub compute_class: u32,
+    pub gpfifo_class: u32,
+    pub inline_to_memory_class: u32,
+    pub dma_copy_class: u32,
+
+    pub gpc_mask: u32,
+
+    pub sm_arch_sm_version: u32,
+    pub sm_arch_spa_version: u32,
+    pub sm_arch_warp_count: u32,
+
+    pub gpu_ioctl_nr_last: i16,
+    pub tsg_ioctl_nr_last: i16,
+    pub dbg_gpu_ioctl_nr_last: i16,
+    pub ioctl_channel_nr_last: i16,
+    pub as_ioctl_nr_last: i16,
+
+    pub gpu_va_bit_count: u8,
+    reserved: u8,
+
+    pub max_fbps_count: u32,
+    pub fbp_en_mask: u32,
+    pub max_ltc_per_fbp: u32,
+    pub max_lts_per_ltc: u32,
+    pub max_tex_per_tpc: u32,
+    pub max_gpc_count: u32,
+
+    pub rop_l2_en_mask_0: u32,
+    pub rop_l2_en_mask_1: u32,
+
+    pub chip_name: [u8; 8],
+    // TODO: The rest. we don't care for now.
+}
+
+impl GpuCharacteristics {
+    pub fn chip_name(&self) -> &str {
+        core::str::from_utf8(&self.chip_name[..])
+            .unwrap()
+            .trim_end_matches('\0')
+    }
+}
+
 pub const KIND_DEFAULT: i32 = -1;
 
 #[allow(dead_code)]
 mod ioctl {
     use super::GpFifoRawOffset;
+    use super::GpuCharacteristics;
     use super::GpuVirtualAddress;
     use super::RawFence;
     use std::os::unix::io::RawFd;
@@ -170,6 +238,16 @@ mod ioctl {
 
     /// NvGPU TSG ioctl magic.
     const NVGPU_TSG_IOCTL_MAGIC: u8 = b'T';
+
+    /// Represent the structure of ``NVGPU_GPU_IOCTL_GET_CHARACTERISTICS``.
+    #[repr(C)]
+    pub struct CtrlGetCharacteristics {
+        /// Input/Output.
+        pub buffer_size: u64,
+
+        /// Input.
+        pub buffer_pointer: *mut GpuCharacteristics,
+    }
 
     /// Represent the structure of ``NVGPU_GPU_IOCTL_ALLOC_AS``.
     #[repr(C)]
@@ -207,6 +285,12 @@ mod ioctl {
         pub reserved: u32,
     }
 
+    ioctl_readwrite!(
+        ioc_ctrl_get_characteristics,
+        NVGPU_GPU_IOCTL_MAGIC,
+        5,
+        CtrlGetCharacteristics
+    );
     ioctl_readwrite!(
         ioc_ctrl_allocate_address_space,
         NVGPU_GPU_IOCTL_MAGIC,
@@ -356,6 +440,26 @@ impl NvHostGpuCtrl {
         }
     }
 
+    pub fn get_characteristics(&self) -> NvGpuResult<GpuCharacteristics> {
+        let mut result = GpuCharacteristics::default();
+        let mut param = CtrlGetCharacteristics {
+            buffer_pointer: &mut result as *mut _,
+            buffer_size: core::mem::size_of::<GpuCharacteristics>() as u64,
+        };
+
+        let res = unsafe { ioc_ctrl_get_characteristics(self.file.as_raw_fd(), &mut param) };
+        if res.is_err() {
+            Err(Errno::UnknownErrno)
+        } else {
+            let errno = res.unwrap();
+            if errno == 0 {
+                Ok(result)
+            } else {
+                Err(Errno::from_i32(errno))
+            }
+        }
+    }
+
     pub fn allocate_address_space(
         &self,
         big_page_size: u32,
@@ -459,7 +563,6 @@ impl TSGChannel {
     pub fn bind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
         let channel_fd = channel.as_raw_fd();
         let res = unsafe { ioc_tsg_bind_channel(self.file.as_raw_fd(), &channel_fd) };
-        //let errno = unsafe { libc::ioctl(self.file.as_raw_fd(), 0x40045401, &arg as *const i64)  };
 
         if res.is_err() {
             Err(Errno::UnknownErrno)
@@ -476,7 +579,6 @@ impl TSGChannel {
     pub fn unbind_channel(&self, channel: &Channel) -> NvGpuResult<()> {
         let channel_fd = channel.as_raw_fd();
         let res = unsafe { ioc_tsg_unbind_channel(self.file.as_raw_fd(), &channel_fd) };
-        //let errno = unsafe { libc::ioctl(self.file.as_raw_fd(), 0x40045401, &arg as *const i64)  };
 
         if res.is_err() {
             Err(Errno::UnknownErrno)
@@ -537,11 +639,11 @@ impl AddressSpace {
         page_size: u32,
         fixed_address: GpuVirtualAddress,
     ) -> NvGpuResult<GpuVirtualAddress> {
-        self.map_buffer_external(handle.fd, flags, 0, 0, page_size, 0, 0, fixed_address)
+        self.map_buffer_extended(handle.fd, flags, 0, 0, page_size, 0, 0, fixed_address)
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn map_buffer_external(
+    pub fn map_buffer_extended(
         &self,
         dmabuf_fd: RawFd,
         flags: u32,

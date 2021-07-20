@@ -1,15 +1,15 @@
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use core::fmt;
+use core::fmt::Debug;
+use core::fmt::Formatter;
+use core::marker::PhantomData;
+use core::ops::Deref;
+use core::ops::DerefMut;
 use std::sync::Mutex;
 
 use nvgpu::*;
 use nvmap::*;
 
-use super::{get_as, get_nvmap};
+use super::{align_up, get_as, get_nvmap};
 
 const PAGE_SIZE: u32 = 0x1000;
 
@@ -20,9 +20,9 @@ pub struct GpuBox<T: Sized> {
 }
 
 impl<T: Sized> GpuBox<T> {
-    pub fn new(x: T) -> GpuBox<T> {
+    pub fn new_with_alignment(x: T, align: usize) -> GpuBox<T> {
         let inner =
-            GpuAllocated::new(std::mem::size_of::<T>(), 0x20000).expect("Cannot allocate GpuBox!");
+            GpuAllocated::new(std::mem::size_of::<T>(), align).expect("Cannot allocate GpuBox!");
 
         let mut res = GpuBox {
             inner,
@@ -35,6 +35,10 @@ impl<T: Sized> GpuBox<T> {
         res.flush().expect("Cannot flush initial GpuBox data");
 
         res
+    }
+
+    pub fn new(x: T) -> GpuBox<T> {
+        Self::new_with_alignment(x, std::mem::align_of::<T>())
     }
 
     pub fn unmap(&self) -> NvMapResult<()> {
@@ -97,7 +101,8 @@ impl GpuAllocated {
             align as u32
         };
 
-        let size = (user_size as u32 + (PAGE_SIZE - 1)) & !(PAGE_SIZE - 1);
+        // Ensure allocation are at least page sized all the time.
+        let size = align_up(user_size as u32, PAGE_SIZE);
 
         let nvmap = get_nvmap();
         let nvgpu_as = get_as();

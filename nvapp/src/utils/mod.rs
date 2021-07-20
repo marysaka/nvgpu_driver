@@ -1,3 +1,5 @@
+use core::ops::{BitAnd, Not};
+use num_traits::Num;
 use nvgpu::*;
 use nvmap::*;
 
@@ -10,6 +12,37 @@ pub use gpu_box::*;
 static mut NVMAP_INSTANCE: *mut NvMap = std::ptr::null_mut();
 static mut NVAS_INSTANCE: *mut AddressSpace = std::ptr::null_mut();
 static mut NVHOST_CTRL_INSTANCE: *mut NvHostGpuCtrl = std::ptr::null_mut();
+
+/// Align the address to the next alignment.
+///
+/// The given number should be a power of two to get coherent results!
+///
+/// # Panics
+///
+/// Panics on underflow if align is 0.
+/// Panics on overflow if the expression `addr + (align - 1)` overflows.
+pub fn align_up<T: Num + Not<Output = T> + BitAnd<Output = T> + Copy>(addr: T, align: T) -> T {
+    align_down(addr + (align - T::one()), align)
+}
+
+/// Align the address to the previous alignment.
+///
+/// The given number should be a power of two to get coherent results!
+///
+/// # Panics
+///
+/// Panics on underflow if align is 0.
+pub fn align_down<T: Num + Not<Output = T> + BitAnd<Output = T> + Copy>(addr: T, align: T) -> T {
+    addr & !(align - T::one())
+}
+
+/// align_up, but checks if addr overflows
+pub fn align_up_checked(addr: usize, align: usize) -> Option<usize> {
+    match addr & (align - 1) {
+        0 => Some(addr),
+        _ => addr.checked_add(align - (addr % align)),
+    }
+}
 
 fn init_nvmap() -> std::io::Result<()> {
     let nvmap = NvMap::new()?;
@@ -48,7 +81,7 @@ fn init_nvhost_gpu_control() -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn initialize() -> std::io::Result<nvgpu::Channel> {
+pub fn initialize() -> std::io::Result<(nvgpu::Channel, nvgpu::GpuCharacteristics)> {
     init_nvhost_gpu_control()?;
     init_nvmap()?;
     init_address_space()?;
@@ -60,7 +93,7 @@ pub fn initialize() -> std::io::Result<nvgpu::Channel> {
 
     let nvgpu_channel = nvhost_gpu_ctrl.open_channel(-1, nvmap, nvgpu_as, Some(&nvtsg_channel))?;
 
-    Ok(nvgpu_channel)
+    Ok((nvgpu_channel, nvhost_gpu_ctrl.get_characteristics()?))
 }
 
 pub fn initialize_command_stream<'a>(

@@ -11,3 +11,4 @@ nvgpu = { path = "../nvgpu" }
 byteorder = "1"
 bitflags = "1.0"
 bitfield = "0.13"
+num-traits = "0.2.14"

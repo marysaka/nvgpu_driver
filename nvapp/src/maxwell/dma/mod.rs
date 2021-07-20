@@ -155,6 +155,7 @@ pub enum SemaphoreReduction {
     IAdd,
     Increment,
     Decrement,
+    /// NOTE: FAdd not always availaible
     FAdd,
     Unknown(u32),
 }
@@ -170,7 +171,6 @@ impl From<SemaphoreReduction> for u32 {
             SemaphoreReduction::IAdd => 5,
             SemaphoreReduction::Increment => 6,
             SemaphoreReduction::Decrement => 7,
-            // There is probably more here TODO poke this
             SemaphoreReduction::FAdd => 0xA,
             SemaphoreReduction::Unknown(val) => val,
         }
@@ -188,7 +188,6 @@ impl From<u32> for SemaphoreReduction {
             5 => SemaphoreReduction::IAdd,
             6 => SemaphoreReduction::Increment,
             7 => SemaphoreReduction::Decrement,
-            // There is probably more here TODO poke this
             0xA => SemaphoreReduction::FAdd,
             val => SemaphoreReduction::Unknown(val),
         }
